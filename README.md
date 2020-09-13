@@ -20,7 +20,7 @@ In case you accidentally fullscreen a video, short recordings (less than 4
 seconds) are ignored. Long recordings are split into 5-minute increments, so you
 can the noise for as long as you want.
 
-Once you have some data, post on the [Slack](http://talonvoice.slack.com). You may also want to try training a model with 
+Once you have some data, post on the [Slack](http://talonvoice.slack.com).
 
 ## Customisation
 
