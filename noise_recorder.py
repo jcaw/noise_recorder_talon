@@ -193,7 +193,7 @@ _current_noise = None
 def recording():
     """Is a noise currently being recorded?"""
     with _sessions_lock:
-        return bool(_active_sessions or _current_noise)
+        return bool(_active_sessions)
 
 
 def record(noise_name,):
@@ -226,16 +226,14 @@ def stop():
     """End the current recording."""
     global _current_noise, _active_sessions
     with _sessions_lock:
-        if _active_sessions:
-            for session in _active_sessions:
-                # Finish can block for a while so spin up a thread to terminate
-                # each session.
-                thread = threading.Thread(target=session.finish)
-                thread.start()
-            _active_sessions = []
-        if _current_noise:
-            gui.hide()
-            _current_noise = None
+        for session in _active_sessions:
+            # Finish can block for a while so spin up a thread to terminate
+            # each session.
+            thread = threading.Thread(target=session.finish)
+            thread.start()
+        _active_sessions = []
+        gui.hide()
+        _current_noise = None
 
 
 # Descriptions & previews of each noise can each be found at
