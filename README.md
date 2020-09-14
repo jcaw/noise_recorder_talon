@@ -5,7 +5,12 @@ YouTube, Vimeo, etc. Just drop it somewhere in your Talon `user` folder to use
 it (or clone it as a git submodule).
 
 The objective is to rapidly produce enough data to train noise recognition
-models as an alternative form of input.
+models as an alternative form of input. Here's an example of something [similar](https://github.com/chaosparrot/parrot.py)
+using a different set of noises:
+
+[![parrot.py author playing Starcraft 2 with eye tracking and noises](https://img.youtube.com/vi/okwLAHQdSVI/0.jpg)](https://www.youtube.com/watch?v=okwLAHQdSVI)
+
+(The noises collected here avoid vocalization.)
 
 ## This Script
 
