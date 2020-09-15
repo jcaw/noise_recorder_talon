@@ -341,7 +341,7 @@ def print_total_noise_recorded():
     hours = mins / 60
     num_sources = len(amounts_recorded_by_device())
     print(
-        f"{mins:0.1f} minutes total recorded so far ({hours:0.1f} hours across {num_sources} sources)"
+        f"{mins:0.0f} minutes total recorded so far ({hours:0.1f} hours across {num_sources} sources)"
     )
 
 
