@@ -339,7 +339,10 @@ def print_total_noise_recorded():
     """Print the total amount of recorded data."""
     mins = total_data() / 60
     hours = mins / 60
-    print(f"{mins:0.1f} minutes total recorded so far ({hours:0.1f} hours)")
+    num_sources = len(amounts_recorded_by_device())
+    print(
+        f"{mins:0.1f} minutes total recorded so far ({hours:0.1f} hours across {num_sources} sources)"
+    )
 
 
 context = Context()
