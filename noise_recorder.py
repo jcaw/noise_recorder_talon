@@ -337,7 +337,9 @@ module.tag(
 @module.action
 def print_total_noise_recorded():
     """Print the total amount of recorded data."""
-    print(f"{total_data() / 60:0.1f}", "minutes total recorded so far")
+    mins = total_data() / 60
+    hours = mins / 60
+    print(f"{mins:0.1f} minutes total recorded so far ({hours:0.1f} hours)")
 
 
 context = Context()
