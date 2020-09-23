@@ -1,5 +1,11 @@
-from talon import cubeb, cron, Context, Module, ui, imgui, scope, actions
+from talon import cron, Context, Module, ui, imgui, scope, actions
 from talon.lib import flac
+
+# `cubeb` was moved to `lib` on newer Talon
+try:
+    from talon import cubeb
+except ImportError:
+    from talon.lib import cubeb
 from talon_init import TALON_HOME
 from threading import Lock
 import re
