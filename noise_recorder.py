@@ -35,6 +35,11 @@ MINIMUM_RECORDING_LENGTH = 4
 assert TRANSITION_DEADZONE <= MINIMUM_RECORDING_LENGTH + 1
 
 
+IGNORED_MICS = [
+    # Add audio sources that you would like to ignore here.
+]
+
+
 NOISES_ROOT = Path(TALON_HOME, f"recordings/noises/")
 
 
@@ -221,7 +226,7 @@ def record(noise_name,):
         #   name.
         used_names = set()
         for device in context.inputs():
-            if not device.name in used_names:
+            if not device.name in used_names and device.name not in IGNORED_MICS:
                 session = _RecordingSession(device, noise_name)
                 session.record()
                 _active_sessions.append(session)
