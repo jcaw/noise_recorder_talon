@@ -143,7 +143,7 @@ class _RecordingSession(object):
             self._frames = []
             # TODO: Spawn thread for this? stopping the stream may also be slow.
             LOGGER.info(f"Writing noise file: {path}")
-            flac.write_flac(str(path), frames, compression_level=1)
+            flac.write_flac(str(path), frames, sample_rate=16000, compression_level=1)
         else:
             LOGGER.info(
                 f"Recording under {MINIMUM_RECORDING_LENGTH} seconds,"
