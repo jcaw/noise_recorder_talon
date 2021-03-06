@@ -176,7 +176,9 @@ class _RecordingSession(object):
             self._frames = []
             ctx = cubeb.Context()
             params = cubeb.StreamParams(
-                format=cubeb.SampleFormat.FLOAT32NE, rate=16000, channels=1,
+                format=cubeb.SampleFormat.FLOAT32NE,
+                rate=16000,
+                channels=1,
             )
             existing = amount_recorded(self.device.name, self.noise_name) / 60
             LOGGER.info(
@@ -207,7 +209,9 @@ def recording():
         return bool(_active_sessions)
 
 
-def record(noise_name,):
+def record(
+    noise_name,
+):
     """Record a noise for `duration` on all input devices."""
     global _active_sessions, _current_noise
     with _sessions_lock:
