@@ -419,7 +419,7 @@ def _maybe_record():
         cron.after("2s", actions.self.print_total_noise_recorded)
 
 
-@imgui.open(software=False, y=0, x=0)
+@imgui.open(y=0, x=0)
 def gui(gui: imgui.GUI):
     global _current_noise
     # TODO: Animate this?
