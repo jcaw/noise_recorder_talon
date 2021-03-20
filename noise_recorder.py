@@ -209,9 +209,7 @@ def recording():
         return bool(_active_sessions)
 
 
-def record(
-    noise_name,
-):
+def record(noise_name):
     """Record a noise for `duration` on all input devices."""
     global _active_sessions, _current_noise
     with _sessions_lock:
