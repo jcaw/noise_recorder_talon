@@ -384,19 +384,16 @@ def _maybe_record():
     """In the right context, start recording on every mic, otherwise stop."""
     global _last_transition
 
-    if "user._noise_recorder_context" in scope.get("tag", []):
-        # Assume it's a fullscreen video if the window is on the PRIMARY screen,
-        # and matches the fullscreen dimensions. This may require the primary
-        # screen to have a toolbar to work properly.
-        app = ui.active_app()
-        window = app.active_window
-        should_record = 0 == window.rect.compare_to_rect(ui.main_screen().rect)
-    else:
-        should_record = False
-
     # The window dimensions can bounce around during the transitions to & from
     # fullscreen, so deadzones are used for debouncing.
-    if should_record:
+    if (
+        "user._noise_recorder_context" in scope.get("tag", [])
+        and
+        # Assume it's a fullscreen video if the window is on the PRIMARY screen,
+        # and matches the fullscreen dimensions. This basically assumes the
+        # primary screen has a toolbar.
+        ui.active_app().active_window.rect == ui.main_screen().rect
+    ):
         if (
             not recording()
             and time.monotonic() > _last_transition + TRANSITION_DEADZONE
