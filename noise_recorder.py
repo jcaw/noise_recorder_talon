@@ -35,9 +35,14 @@ MINIMUM_RECORDING_LENGTH = 4
 assert TRANSITION_DEADZONE <= MINIMUM_RECORDING_LENGTH + 1
 
 
-IGNORED_MICS = [
-    # Add audio sources that you would like to ignore here.
-]
+IGNORED_MICS = list(
+    map(
+        re.compile,
+        [
+            # Add audio sources that you would like to ignore here.
+        ],
+    )
+)
 
 
 NOISES_ROOT = Path(TALON_HOME, f"recordings/noises/")
@@ -207,7 +212,16 @@ def recording():
         return bool(_active_sessions)
 
 
-def record(noise_name,):
+# TODO: Don't iterate over these, just use a combined regexp
+def any_regexp(regexps, string):
+    """Are any of `regexps` present in `string`?"""
+    for regexp in regexps:
+        if regexp.search(string):
+            return True
+    return False
+
+
+def record(noise_name):
     """Record a noise for `duration` on all input devices."""
     global _active_sessions, _current_noise
     with _sessions_lock:
@@ -226,8 +240,9 @@ def record(noise_name,):
         #   name.
         used_names = set()
         for device in context.inputs():
-            if not device.name in used_names and device.name not in IGNORED_MICS:
-                session = _RecordingSession(device, noise_name)
+            if not device.name in used_names and not any_regexp(
+                IGNORED_MICS, device.name
+            ):
                 session.record()
                 _active_sessions.append(session)
                 used_names.add(device.name)
