@@ -1,4 +1,4 @@
-from talon import cron, Context, Module, ui, imgui, scope, actions
+from talon import cron, Context, Module, ui, imgui, scope, actions, app
 from talon.lib import flac
 
 # `cubeb` was moved to `lib` on newer Talon
@@ -386,15 +386,23 @@ module.tag(
 )
 
 
-@module.action
-def print_total_noise_recorded():
-    """Print the total amount of recorded data."""
-    mins = total_data() / 60
-    hours = mins / 60
-    num_sources = len(amounts_recorded_by_device())
-    print(
-        f"{mins:0.0f} minutes total recorded so far ({hours:0.1f} hours split across {num_sources} sources)"
-    )
+@module.action_class
+class NoiseActions:
+    def report_noise_recorded() -> None:
+        """Pop a notification showing the total amount of noise recorded."""
+        mins = total_data() / 60
+        hours = mins / 60
+        # This double accesses file tree but that's fine
+        num_sources = len(amounts_recorded_by_device())
+        average_mins = mins / num_sources
+        average_hours = hours / num_sources
+        report = (
+            f"{hours:0.1f} hours total across {num_sources} sources - {average_hours:0.1f}"
+            f" hours (or {average_mins:0.0f}) mins per source on average."
+        )
+        print(f"Total noise recorded: {report}")
+        app.notify("Total Noise Recorded", report)
+
 
 
 context = Context()
