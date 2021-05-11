@@ -185,6 +185,7 @@ class _RecordingSession(object):
         if len(self._frames) >= sample_rate * MINIMUM_RECORDING_LENGTH:
             path = self._get_chunk_path()
             # TODO: Do this on a delay later
+            #   ^ What did I mean by this???
             frames = self._frames
             self._frames = []
             # TODO: Spawn thread for this? stopping the stream may also be slow.
