@@ -135,6 +135,18 @@ def _recordings_from_uuid(uuid_):
     return matching_paths
 
 
+_LAST_NOTIFICATION = time.monotonic() - 999999
+
+
+def _notify_with_deadzone(title, message, deadzone=1):
+    """Send a notification, unless another was sent recently."""
+    global _LAST_NOTIFICATION
+    now = time.monotonic()
+    if now > _LAST_NOTIFICATION + deadzone:
+        _LAST_NOTIFICATION = now
+        app.notify(title, message)
+
+
 class _RecordingSession(object):
     def __init__(self, device, noise_name, uuid):
         self.device = device
@@ -180,10 +192,43 @@ class _RecordingSession(object):
             flac.write_flac(
                 str(path), frames, sample_rate=sample_rate, compression_level=1
             )
+
+            # This will fire once per device, so deadzone it.
+            duration = len(frames) / sample_rate
+            # HACK: Sometimes Windows will suppress this notification so throw
+            #   it on a delay. (The delay also allows us the report of the total
+            #   to factor in all mics in this session.)
+            #
+            # TODO: Add up time from all split recordings
+            #
+            # TODO: Organisation of this notification scheme is gross. At some
+            #   point rewrite it.
+            noise_name = self.noise_name
+
+            def report_success():
+                nonlocal duration, noise_name
+                total_hours = total_data() / 60 / 60
+                num_mics = len(amounts_recorded_by_device())
+                _notify_with_deadzone(
+                    "Noise Recorded",
+                    # TODO: Read this from disk to take into account multiple chunks
+                    f'Recorded {duration:0.0f} seconds of: "{noise_name}" ({duration/60:0.1f} mins). Say "delete last recording" to discard it. All noises: {total_hours:0.1f} hours across {num_mics} mics.',
+                ),
+
+            cron.after("500ms", report_success)
         else:
             LOGGER.info(
-                f"Recording under {MINIMUM_RECORDING_LENGTH} seconds,"
-                f" file not written: {self}"
+                f"Recording under {MINIMUM_RECORDING_LENGTH} seconds, file not written: {self}"
+            )
+            # HACK: Sometimes Windows will suppress this notification so throw
+            #   it on a delay.
+            cron.after(
+                "500ms",
+                # This will fire once per device, so deadzone it.
+                lambda: _notify_with_deadzone(
+                    "Recording Discarded",
+                    f'Recording under {MINIMUM_RECORDING_LENGTH} seconds, discarding: "{self.noise_name}"',
+                ),
             )
 
     def finish(self):
@@ -533,9 +578,6 @@ def _maybe_record():
         _last_transition = time.monotonic()
         context.tags.remove("user.recording_noises")
         stop()
-        # Lambda is used becayse Python thinks `print_total_noise_recorded`
-        # isn't callable.
-        cron.after("2s", actions.self.print_total_noise_recorded)
         gui.hide()
         with _gui_lock:
             _gui_text = None
