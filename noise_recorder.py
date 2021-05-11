@@ -32,6 +32,10 @@ TRANSITION_DEADZONE = 3
 # Recordings shorter than this (in seconds) will not be saved. Quickly exit
 # fullscreen to ignore accidental recordings.
 MINIMUM_RECORDING_LENGTH = 10
+# Long recordings will be split into files of this length.
+SPLIT_TIME = "5m"
+
+
 # Ensure the deadzone won't cause empty recordings to be saved.
 assert TRANSITION_DEADZONE <= MINIMUM_RECORDING_LENGTH + 1
 
@@ -116,8 +120,6 @@ class _RecordingSession(object):
         self._lock = Lock()
         self._frames = []
         self._split_cron = None
-        # Long recordings will be split into files of this length
-        self._split_time = "5m"
 
     def _on_data(self, stream, in_frames, out_frames):
         with self._lock:
@@ -199,7 +201,7 @@ class _RecordingSession(object):
                 data_cb=self._on_data,
             )
             self._stream.start()
-            self._split_cron = cron.interval(self._split_time, self._split_recording)
+            self._split_cron = cron.interval(SPLIT_TIME, self._split_recording)
 
 
 _active_sessions = []
