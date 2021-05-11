@@ -168,8 +168,9 @@ class _RecordingSession(object):
 
     def _write_frames(self):
         """Write the frames so far to a file & clear them."""
+        sample_rate = 16000
         # Ignore short recordings, these are probably accidental.
-        if len(self._frames) >= 16000 * MINIMUM_RECORDING_LENGTH:
+        if len(self._frames) >= sample_rate * MINIMUM_RECORDING_LENGTH:
             path = self._get_chunk_path()
             # TODO: Do this on a delay later
             frames = self._frames
