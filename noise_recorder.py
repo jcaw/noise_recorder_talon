@@ -384,6 +384,13 @@ module.tag(
     "_noise_recorder_context",
     desc="Active when `noise_recorder.py` has a matching context.",
 )
+module.tag(
+    "recording_noises",
+    desc=(
+        "Active when the noise recorder script is currently recording a noise."
+        "\n\nUse to disable Talon acting on noises while recording."
+    ),
+)
 
 
 @module.action_class
@@ -465,9 +472,10 @@ def _maybe_record():
                 f"{existing / 60:0.1f} mins exist already."
             )
             record(noise)
-            # TODO: Probably enable a tag here so people can hook behaviour
+            context.tags.add("user.recording_noises")
     elif recording() and time.monotonic() > _last_transition + TRANSITION_DEADZONE:
         _last_transition = time.monotonic()
+        context.tags.remove("user.recording_noises")
         stop()
         # Lambda is used becayse Python thinks `print_total_noise_recorded`
         # isn't callable.
