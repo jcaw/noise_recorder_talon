@@ -31,7 +31,7 @@ LOGGER.setLevel(logging.INFO)
 TRANSITION_DEADZONE = 3
 # Recordings shorter than this (in seconds) will not be saved. Quickly exit
 # fullscreen to ignore accidental recordings.
-MINIMUM_RECORDING_LENGTH = 4
+MINIMUM_RECORDING_LENGTH = 10
 # Ensure the deadzone won't cause empty recordings to be saved.
 assert TRANSITION_DEADZONE <= MINIMUM_RECORDING_LENGTH + 1
 
