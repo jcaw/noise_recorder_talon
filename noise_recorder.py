@@ -16,6 +16,7 @@ import subprocess
 import inspect
 import threading
 import random
+import uuid
 import struct
 import logging
 from collections import defaultdict
@@ -107,9 +108,10 @@ def amount_recorded(device_name, noise_name):
 
 
 class _RecordingSession(object):
-    def __init__(self, device, noise_name):
+    def __init__(self, device, noise_name, uuid):
         self.device = device
         self.noise_name = noise_name
+        self.uuid = uuid
         self._recording = False
         self._lock = Lock()
         self._frames = []
@@ -125,14 +127,14 @@ class _RecordingSession(object):
     def __str__(self):
         return f'<"{self.noise_name}" on "{self.device.name}">'
 
-    def _get_free_path(self):
-        """Find the first free path to save the noise file under."""
+    def _get_chunk_path(self):
+        """Get the path to save the current chunk as."""
         folder = recordings_path(self.device.name, self.noise_name)
         folder.mkdir(parents=True, exist_ok=True)
-        index = 0
         # Find first free path number
+        index = 0
         while True:
-            path = Path(folder, f"{index}.flac")
+            path = folder / f"{self.uuid}_{index}.flac"
             if path.exists():
                 index += 1
             else:
@@ -142,7 +144,7 @@ class _RecordingSession(object):
         """Write the frames so far to a file & clear them."""
         # Ignore short recordings, these are probably accidental.
         if len(self._frames) >= 16000 * MINIMUM_RECORDING_LENGTH:
-            path = self._get_free_path()
+            path = self._get_chunk_path()
             # TODO: Do this on a delay later
             frames = self._frames
             self._frames = []
@@ -221,6 +223,21 @@ def any_regexp(regexps, string):
     return False
 
 
+def _get_free_uuid():
+    """Get a noise UUID that hasn't been used by any existing recordings.
+
+    Probability of collision is of course low but this is here just in case.
+
+    """
+    existing_paths = _list_recording_paths()
+    while True:
+        uuid_ = str(uuid.uuid4())
+        for path in existing_paths:
+            if uuid_ in path:
+                continue
+        return uuid_
+
+
 def record(noise_name):
     """Record a noise for `duration` on all input devices."""
     global _active_sessions, _current_noise
@@ -239,10 +256,15 @@ def record(noise_name):
         # FIXME: This will exclude actually different devices with the same
         #   name.
         used_names = set()
+        # Filename is a UUID, but we use the same UUID for every source. This
+        # can be used to cross-reference recordings, e.g. to extract timings
+        # from a cleaner mic and apply them to a dirtier mic.
+        uuid_ = _get_free_uuid()
         for device in context.inputs():
             if not device.name in used_names and not any_regexp(
                 IGNORED_MICS, device.name
             ):
+                session = _RecordingSession(device, noise_name, uuid_)
                 session.record()
                 _active_sessions.append(session)
                 used_names.add(device.name)
