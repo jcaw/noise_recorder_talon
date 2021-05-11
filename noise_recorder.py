@@ -417,6 +417,8 @@ def amounts_recorded_by_device():
     """Get the amount of each noise recorded on each device."""
     devices = {}
     if NOISES_ROOT.exists():
+        # TODO: Possibly cache this, if noises are on a hard disk this can be
+        #   slow (especially on first access)
         for device_dir in os.listdir(NOISES_ROOT):
             noises = {}
             for noise_folder in os.listdir(NOISES_ROOT / device_dir):
