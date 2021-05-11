@@ -430,7 +430,7 @@ _original_mic = None
 
 def _maybe_record():
     """In the right context, start recording on every mic, otherwise stop."""
-    global _last_transition, _original_mic
+    global _last_transition, _original_mic, _gui_text
 
     if "user._noise_recorder_context" in scope.get("tag", []):
         # Assume it's a fullscreen video if the window is on the PRIMARY screen,
@@ -454,6 +454,10 @@ def _maybe_record():
             _original_mic = active_mic.name if active_mic else None
             print("Disabling mic while recording noises.")
             actions.speech.set_microphone("None")
+            with _gui_lock:
+                # This can take a while (e.g. on a cold disk drive) so pop a
+                # message
+                _gui_text = "Scanning noise recordings on disk, this may be slow..."
             gui.show()
             noise, existing = noise_with_least_data()
             LOGGER.info(
