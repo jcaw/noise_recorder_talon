@@ -209,7 +209,8 @@ class _RecordingSession(object):
 _active_sessions = []
 _sessions_lock = threading.Lock()
 # Used by the gui to prompt the user
-_current_noise = None
+_gui_text = None
+_gui_lock = threading.Lock()
 
 
 def recording():
@@ -244,12 +245,13 @@ def _get_free_uuid():
 
 def record(noise_name):
     """Record a noise for `duration` on all input devices."""
-    global _active_sessions, _current_noise
+    global _active_sessions, _gui_text
     with _sessions_lock:
         if _active_sessions:
             raise RuntimeError("Already recording. End the current recording first.")
 
-        _current_noise = noise_name
+        with _gui_lock:
+            _gui_text = f'Recording "{noise_name}"...'
         gui.show()
 
         context = cubeb.Context()
@@ -276,7 +278,7 @@ def record(noise_name):
 
 def stop():
     """End the current recording."""
-    global _current_noise, _active_sessions
+    global _gui_text, _active_sessions
     with _sessions_lock:
         for session in _active_sessions:
             # Finish can block for a while so spin up a thread to terminate
@@ -284,8 +286,6 @@ def stop():
             thread = threading.Thread(target=session.finish)
             thread.start()
         _active_sessions = []
-        gui.hide()
-        _current_noise = None
 
 
 # Descriptions & previews of each noise can each be found at
@@ -454,6 +454,7 @@ def _maybe_record():
             _original_mic = active_mic.name if active_mic else None
             print("Disabling mic while recording noises.")
             actions.speech.set_microphone("None")
+            gui.show()
             noise, existing = noise_with_least_data()
             LOGGER.info(
                 f'Recording noise with the least data: "{noise}", '
@@ -467,6 +468,9 @@ def _maybe_record():
         # Lambda is used becayse Python thinks `print_total_noise_recorded`
         # isn't callable.
         cron.after("2s", actions.self.print_total_noise_recorded)
+        gui.hide()
+        with _gui_lock:
+            _gui_text = None
         print("Re-enabling microphone.")
         if _original_mic:
             actions.speech.set_microphone(_original_mic)
@@ -479,11 +483,14 @@ def _maybe_record():
 
 @imgui.open(software=False, y=0, x=0)
 def gui(gui: imgui.GUI):
-    global _current_noise
-    # TODO: Animate this?
-    #
-    # TODO: Make it red & bold?
-    gui.text(f'Recording "{_current_noise}"...')
+    global _gui_text
+    # TODO: Guard this with a lock?
+    with _gui_lock:
+        if _gui_text:
+            # TODO: Animate this?
+            #
+            # TODO: Make it red & bold?
+            gui.text(_gui_text)
 
 
 #### Comment out this line to disable the script: ####
