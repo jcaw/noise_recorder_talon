@@ -419,7 +419,7 @@ _noises = [
     "thhk",
     "thhp",
     "trot",
-    "tsk",
+    "tut",
     "tss",
     "tuh",
     "uh",
