@@ -518,8 +518,9 @@ class NoiseActions:
                     f'Prior "{noise_name}" deleted across all mics ({n_deleted} files removed).',
                 )
             else:
-                raise RuntimeError(
-                    "Could not find any noise files matching previous UUID."
+                app.notify(
+                    "Error Deleting Noises",
+                    "Could not find any noise files matching previous UUID. Did you already delete them?",
                 )
         else:
             app.notify(
