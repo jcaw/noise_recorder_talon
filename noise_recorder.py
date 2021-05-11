@@ -133,7 +133,6 @@ def _duration_in_folder(folder):
     total_duration = 0.0
     if folder.exists():
         for filename in Path(folder).glob("**/*.flac"):
-            print(filename)
             total_duration += get_flac_duration(filename)
     return total_duration
 
