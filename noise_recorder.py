@@ -398,7 +398,7 @@ def total_data():
 
 def noise_with_least_data():
     """Get the noise with the lease local data recorded."""
-    min_duration = 999999999999999
+    min_duration = 99999999999999999999999999999
     min_noise = None
     recorded_amounts = amounts_recorded_total()
     for noise in _noises:
