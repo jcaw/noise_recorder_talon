@@ -1,4 +1,4 @@
-from talon import cron, Context, Module, ui, imgui, scope, actions, app
+from talon import cron, Context, Module, ui, imgui, scope, actions, app, microphone
 from talon.lib import flac
 
 # `cubeb` was moved to `lib` on newer Talon
@@ -425,11 +425,12 @@ context.tags = ["user._noise_recorder_context"]
 
 # Used for debouncing
 _last_transition = -999
+_original_mic = None
 
 
 def _maybe_record():
     """In the right context, start recording on every mic, otherwise stop."""
-    global _last_transition
+    global _last_transition, _original_mic
 
     if "user._noise_recorder_context" in scope.get("tag", []):
         # Assume it's a fullscreen video if the window is on the PRIMARY screen,
@@ -449,6 +450,10 @@ def _maybe_record():
             and time.monotonic() > _last_transition + TRANSITION_DEADZONE
         ):
             _last_transition = time.monotonic()
+            active_mic = microphone.manager.active_mic()
+            _original_mic = active_mic.name if active_mic else None
+            print("Disabling mic while recording noises.")
+            actions.speech.set_microphone("None")
             noise, existing = noise_with_least_data()
             LOGGER.info(
                 f'Recording noise with the least data: "{noise}", '
@@ -462,6 +467,14 @@ def _maybe_record():
         # Lambda is used becayse Python thinks `print_total_noise_recorded`
         # isn't callable.
         cron.after("2s", actions.self.print_total_noise_recorded)
+        print("Re-enabling microphone.")
+        if _original_mic:
+            actions.speech.set_microphone(_original_mic)
+            _original_mic = None
+        else:
+            # Shouldn't ever get here but just use this as a fallback
+            print('No previous mic found. Switching to "System Default"')
+            actions.speech.set_microphone("System Default")
 
 
 @imgui.open(software=False, y=0, x=0)
