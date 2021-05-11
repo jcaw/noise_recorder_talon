@@ -12,6 +12,7 @@ import re
 import time
 from pathlib import Path
 import os
+import glob
 import subprocess
 import inspect
 import threading
@@ -53,6 +54,12 @@ IGNORED_MICS = list(
 NOISES_ROOT = Path(TALON_HOME, f"recordings/noises/")
 
 
+# Allows accidental recordings to be deleted.
+last_recording_uuid = ""
+last_recording_noise_name = ""
+last_recording_lock = threading.Lock()
+
+
 def recordings_path(device_name, noise_name):
     """Get the folder a specific noise's recordings should be stored in."""
     # Use only these chars for the mic folder so it works on any file
@@ -62,6 +69,14 @@ def recordings_path(device_name, noise_name):
     if len(mic_folder) > MAX_FOLDER_LENGTH:
         mic_folder = mic_folder[:MAX_FOLDER_LENGTH]
     return Path(NOISES_ROOT, mic_folder, str(noise_name))
+
+
+def _list_recording_paths():
+    """Get the paths of all existing recordings."""
+    if NOISES_ROOT.exists():
+        return glob.glob(str(NOISES_ROOT / "**/*.flac"), recursive=True)
+    else:
+        return []
 
 
 # FIXME: This seems to be returning wrong values
@@ -109,6 +124,15 @@ def amount_recorded(device_name, noise_name):
             if filename.endswith(".flac"):
                 total_duration += get_flac_duration(path / filename)
     return total_duration
+
+
+def _recordings_from_uuid(uuid_):
+    """Get the paths of all noise files matching `uuid`."""
+    matching_paths = []
+    for path in _list_recording_paths():
+        if uuid_ in path:
+            matching_paths.append(path)
+    return matching_paths
 
 
 class _RecordingSession(object):
@@ -160,6 +184,7 @@ class _RecordingSession(object):
             )
 
     def finish(self):
+        global last_recording_uuid, last_recording_noise_name
         with self._lock:
             LOGGER.info(f"Terminating recording: {self}")
             self._recording = False
@@ -169,6 +194,11 @@ class _RecordingSession(object):
             except Exception as e:
                 LOGGER.info(f"Failed to cancel split cron job: {e}")
             self._split_cron = None
+            with last_recording_lock:
+                # This will fire once for every mic in this session, but that's
+                # fine.
+                last_recording_uuid = self.uuid
+                last_recording_noise_name = self.noise_name
         # This can take a while, so release the lock first
         self._stream.stop()
 
@@ -410,6 +440,32 @@ class NoiseActions:
         print(f"Total noise recorded: {report}")
         app.notify("Total Noise Recorded", report)
 
+    def delete_last_noise_recording() -> None:
+        """Delete the previous recording session (across all devices)."""
+        with last_recording_lock:
+            uuid_ = last_recording_uuid
+            noise_name = last_recording_noise_name
+        if uuid_:
+            n_deleted = 0
+            for noise_file in _recordings_from_uuid(uuid_):
+                print("Deleting noise file:", noise_file)
+                os.remove(noise_file)
+                n_deleted += 1
+            if n_deleted:
+                app.notify(
+                    "Noise Deleted",
+                    # TODO: Count n_files & n_mics separately
+                    f'Prior "{noise_name}" deleted across all mics ({n_deleted} files removed).',
+                )
+            else:
+                raise RuntimeError(
+                    "Could not find any noise files matching previous UUID."
+                )
+        else:
+            app.notify(
+                "Error Deleting Noises",
+                "No noises recorded since the script was last loaded.",
+            )
 
 
 context = Context()
