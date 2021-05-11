@@ -603,7 +603,7 @@ def _maybe_record():
             actions.speech.set_microphone("System Default")
 
 
-@imgui.open(software=False, y=0, x=0)
+@imgui.open(y=0, x=0)
 def gui(gui: imgui.GUI):
     global _gui_text
     # TODO: Guard this with a lock?
