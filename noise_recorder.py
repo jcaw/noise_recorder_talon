@@ -71,12 +71,25 @@ def recordings_path(device_name, noise_name):
     return Path(NOISES_ROOT, mic_folder, str(noise_name))
 
 
-def _list_recording_paths():
-    """Get the paths of all existing recordings."""
-    if NOISES_ROOT.exists():
-        return glob.glob(str(NOISES_ROOT / "**/*.flac"), recursive=True)
-    else:
+def _all_recordings():
+    """Get details of all recordings on disk.
+
+    Each recording is returned as a tuple (path, noise, device).
+
+    """
+    if not NOISES_ROOT.exists():
         return []
+
+    result = []
+    for path in NOISES_ROOT.glob("**/*.flac"):
+        relative_parts = Path(path).relative_to(NOISES_ROOT).parts
+        # TODO: Can "." ever be in the subpath? Put this here just in case for Mac/Linux
+        if str(relative_parts[0]) == ".":
+            relative_parts = relative_parts[1:]
+        device = relative_parts[0]
+        noise = relative_parts[1]
+        result.append((path, device, noise))
+    return result
 
 
 # FIXME: This seems to be returning wrong values
@@ -115,22 +128,21 @@ def get_flac_duration(filename: str) -> float:
             header = f.read(4)
 
 
-def amount_recorded(device_name, noise_name):
-    """Get the amount of `noise_name` on disk for `device`, in seconds."""
-    path = recordings_path(device_name, noise_name)
+def _duration_in_folder(folder):
+    """Get the amount of noise on disk in `folder`, in seconds. Recursive."""
     total_duration = 0.0
-    if path.exists():
-        for filename in os.listdir(path):
-            if filename.endswith(".flac"):
-                total_duration += get_flac_duration(path / filename)
+    if folder.exists():
+        for filename in Path(folder).glob("**/*.flac"):
+            print(filename)
+            total_duration += get_flac_duration(filename)
     return total_duration
 
 
 def _recordings_from_uuid(uuid_):
     """Get the paths of all noise files matching `uuid`."""
     matching_paths = []
-    for path in _list_recording_paths():
-        if uuid_ in path:
+    for path, _, _ in _all_recordings():
+        if uuid_ in str(path):
             matching_paths.append(path)
     return matching_paths
 
@@ -268,7 +280,10 @@ class _RecordingSession(object):
                 rate=16000,
                 channels=1,
             )
-            existing = amount_recorded(self.device.name, self.noise_name) / 60
+            existing = (
+                _duration_in_folder(recordings_path(self.device.name, self.noise_name))
+                / 60
+            )
             LOGGER.info(
                 f"Recording: {self}. {existing:0.1f} mins exist from this device already."
             )
@@ -313,11 +328,10 @@ def _get_free_uuid():
     Probability of collision is of course low but this is here just in case.
 
     """
-    existing_paths = _list_recording_paths()
     while True:
         uuid_ = str(uuid.uuid4())
-        for path in existing_paths:
-            if uuid_ in path:
+        for path, _, _ in _all_recordings():
+            if uuid_ in str(path):
                 continue
         return uuid_
 
@@ -415,16 +429,11 @@ _noises = [
 
 
 def amounts_recorded_by_device():
-    """Get the amount of each noise recorded on each device."""
-    devices = {}
-    if NOISES_ROOT.exists():
-        # TODO: Possibly cache this, if noises are on a hard disk this can be
-        #   slow (especially on first access)
-        for device_dir in os.listdir(NOISES_ROOT):
-            noises = {}
-            for noise_folder in os.listdir(NOISES_ROOT / device_dir):
-                noises[noise_folder] = amount_recorded(device_dir, noise_folder)
-            devices[device_dir] = noises
+    """Get the amount of each noise (in seconds) recorded on each device."""
+    # { device: { noise: amount } }
+    devices = defaultdict(lambda: defaultdict(float))
+    for path, device, noise in _all_recordings():
+        devices[device][noise] += get_flac_duration(path)
     return devices
 
 
