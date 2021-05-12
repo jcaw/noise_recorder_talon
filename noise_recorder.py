@@ -92,7 +92,6 @@ def _all_recordings():
     return result
 
 
-# FIXME: This seems to be returning wrong values
 def get_flac_duration(filename: str) -> float:
     """Returns the duration of a FLAC file in seconds.
 
