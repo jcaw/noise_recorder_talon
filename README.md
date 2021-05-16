@@ -1,3 +1,7 @@
+# NOTE: Personal Branch
+
+PLEASE NOTE: this branch just has personal changes I'm using with my own config. They're odd, may not work and I'll periodically force-push to this branch. Please use the main branch if you want to use the noise recorder.
+
 # Noise Recorder
 
 Talon script that allows you to record noise data while watching videos on

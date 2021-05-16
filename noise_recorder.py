@@ -14,13 +14,14 @@ from pathlib import Path
 import os
 import glob
 import subprocess
+import platform
 import inspect
 import threading
 import random
 import uuid
 import struct
 import logging
-from collections import defaultdict
+from collections import defaultdict, deque
 
 
 LOGGER = logging.getLogger(__name__)
@@ -46,6 +47,17 @@ IGNORED_MICS = list(
         re.compile,
         [
             # Add audio sources that you would like to ignore here.
+            r"^Internal AUX Jack \(High Definition Audio Device\)$",
+            r"^Internal AUX Jack \(NVIDIA High Definition Audio\)$",
+            r"^Microphone \(High Definition",
+            # "^Microphone (Realtek High Definition Audio Device)$",
+            r"^Line In \(High Definition Audio Device\)$",
+            r"^MIDI ",
+            r"^SPDIF ",
+            r"^Stereo Mix ",
+            r"^Front ",
+            r"^External ",
+            r"^Microphone \(2- USB Audio CODEC \)$",
         ],
     )
 )
@@ -179,11 +191,25 @@ class _RecordingSession(object):
         self._lock = Lock()
         self._frames = []
         self._split_cron = None
+        # Doesn't need to be exact
+        self._recent_maxes = deque(maxlen=int(16000 * 5 / 320))
 
     def _on_data(self, stream, in_frames, out_frames):
         with self._lock:
             if self._recording:
                 self._frames.extend(in_frames)
+                # max(max, -min) is quicker than mapping `abs` over the list
+                self._recent_maxes.append(max(max(in_frames), -min(in_frames)))
+                max_ = max(self._recent_maxes)
+                with _gui_lock:
+                    if max_ > 1.5:
+                        _clipping_mics.add(self.device.name)
+                    elif self.device.name in _clipping_mics:
+                        _clipping_mics.remove(self.device.name)
+                    if max_ < 0.0005:
+                        _silent_mics.add(self.device.name)
+                    elif self.device.name in _silent_mics:
+                        _silent_mics.remove(self.device.name)
 
     def __str__(self):
         return f'<"{self.noise_name}" on "{self.device.name}">'
@@ -314,7 +340,9 @@ class _RecordingSession(object):
 _active_sessions = []
 _sessions_lock = threading.Lock()
 # Used by the gui to prompt the user
-_gui_text = None
+_gui_prompt = None
+_silent_mics = set()
+_clipping_mics = set()
 _gui_lock = threading.Lock()
 
 
@@ -349,13 +377,13 @@ def _get_free_uuid():
 
 def record(noise_name):
     """Record a noise for `duration` on all input devices."""
-    global _active_sessions, _gui_text
+    global _active_sessions, _gui_prompt
     with _sessions_lock:
         if _active_sessions:
             raise RuntimeError("Already recording. End the current recording first.")
 
         with _gui_lock:
-            _gui_text = f'Recording "{noise_name}"...'
+            _gui_prompt = f'Recording "{noise_name}"...'
         gui.show()
 
         context = cubeb.Context()
@@ -382,14 +410,17 @@ def record(noise_name):
 
 def stop():
     """End the current recording."""
-    global _gui_text, _active_sessions
+    global _gui_prompt, _active_sessions
     with _sessions_lock:
         for session in _active_sessions:
             # Finish can block for a while so spin up a thread to terminate
             # each session.
-            thread = threading.Thread(target=session.finish)
+            thread = threading.Thread(target=session.finish, daemon=True)
             thread.start()
         _active_sessions = []
+        with _gui_lock:
+            _clipping_mics.clear()
+            _silent_mics.clear()
 
 
 # Descriptions & previews of each noise can each be found at
@@ -403,21 +434,17 @@ _noises = [
     "ffp",
     "fft",
     "fuh",
-    "hgh",
-    "high-fart",
+    ## "hgh",
     "hiss",
-    "horse",
     "huh",
     "kuh",
     "loogie",
-    "low-fart",
-    "motorcycle",
+    # "motorcycle",
     "mouth-smack",
     "oh",
     "pop",
     "pst",
     "puh",
-    "rrh",
     "shh",
     "shhk",
     "shhp",
@@ -425,18 +452,84 @@ _noises = [
     "ssk",
     "ssp",
     "sst",
-    "sucking-teeth",
+    # "sucking-teeth",
     "suh",
     "thh",
     "thhk",
     "thhp",
     "trot",
-    "tut",
+    # Use the tip of the tongue against the alveolar ridge
+    "alveolar-tut",
+    # TODO: Where did tssk go?
     "tss",
     "tuh",
-    "uh",
-    "xuh",
+    ## "uh",
+    ## "xuh",
+    # Louder noises
+    # "rrh",
+    # "high-fart",
+    # "low-fart",
+    # "horse",
 ]
+# Additional noises (not in the base Talon set)
+#
+# These are just experiments for now.
+_noises.extend(
+    [
+        #
+        "fss",
+        "fth",
+        "fsh",
+        "pss",
+        "pth",
+        "psh",
+        "pff",
+        "tth",
+        "tsh",
+        "tff",
+        "kss",
+        "kth",
+        "ksh",
+        "kff",
+        # TODO: Maybe "l"?
+        # "lss",
+        # "lth",
+        # "lsh",
+        # "lff",
+        # "ssl",
+        # "thl",
+        # "shl",
+        # "ffl",
+        # TODO: L, Y, Ch, N, M
+        # TODO: Other vowel-like sounds, from other mouth shapes. Non-language
+        # Tip of the tongue against the back of the alveolar ridge. Relaxed mouth.
+        "alveolar-click",
+        # Ooh like a monkey, then do an alveolar click
+        # "alveolar-tot",
+        # Middle of the tongue against the hard palette
+        "hard-palate-click",
+        # Use the middle of the tongue against the hard palate
+        # "hard-palate-tut",
+        # Like a "hee" sound
+        # "cat-hiss",
+        "hot_silence",
+        # Kind of like a loogie without the hacking
+        "hwit",
+    ]
+)
+
+# Shorter noises - these will have less data per file, so can record more to
+# compensate.
+# _noises = [
+#     "alveolar-click",
+#     # "alveolar-tot",
+#     "hard-palate-click",
+#     # "alveolar-tut",
+#     "pop",
+#     "trot",
+# ]
+
+# _noises = ["hot_silence"]
 
 
 def amounts_recorded_by_device():
@@ -501,12 +594,18 @@ class NoiseActions:
         mins = total_data() / 60
         hours = mins / 60
         # This double accesses file tree but that's fine
-        num_sources = len(amounts_recorded_by_device())
-        average_mins = mins / num_sources
-        average_hours = hours / num_sources
+        amounts = amounts_recorded_by_device()
+        num_sources = len(amounts)
+        mins_per_mic = mins / num_sources
+        hours_per_mic = hours / num_sources
+        noise_names = set()
+        for device, noises in amounts.items():
+            noise_names.update(noises.keys())
+        average_per_noise = mins / max(len(noise_names), 1)
         report = (
-            f"{hours:0.1f} hours total across {num_sources} sources - {average_hours:0.1f}"
-            f" hours (or {average_mins:0.0f}) mins per source on average."
+            f"{hours:0.1f} hours total across {num_sources} sources - {hours_per_mic:0.1f} hours"
+            # " (or {mins_per_mic:0.0f} mins)"
+            f" per source & {average_per_noise:0.1f} mins per noise on average."
         )
         print(f"Total noise recorded: {report}")
         app.notify("Total Noise Recorded", report)
@@ -550,6 +649,8 @@ app: /opera/
 title: /YouTube/
 title: /Vimeo/
 title: /Twitch/
+title: /MMA Video/
+title: /Full Fight UFC/
 """
 # TODO: Disable speech & noises when recording
 #
@@ -565,7 +666,7 @@ _original_mic = None
 
 def _maybe_record():
     """In the right context, start recording on every mic, otherwise stop."""
-    global _last_transition, _original_mic, _gui_text
+    global _last_transition, _original_mic, _gui_prompt
 
     # The window dimensions can bounce around during the transitions to & from
     # fullscreen, so deadzones are used for debouncing.
@@ -589,7 +690,7 @@ def _maybe_record():
             with _gui_lock:
                 # This can take a while (e.g. on a cold disk drive) so pop a
                 # message
-                _gui_text = "Scanning noise recordings on disk, this may be slow..."
+                _gui_prompt = "Scanning noise recordings on disk, this may be slow..."
             gui.show()
             noise, existing = noise_with_least_data()
             LOGGER.info(
@@ -604,7 +705,7 @@ def _maybe_record():
         stop()
         gui.hide()
         with _gui_lock:
-            _gui_text = None
+            _gui_prompt = None
         print("Re-enabling microphone.")
         if _original_mic:
             actions.speech.set_microphone(_original_mic)
@@ -617,15 +718,31 @@ def _maybe_record():
 
 @imgui.open(y=0, x=0)
 def gui(gui: imgui.GUI):
-    global _gui_text
-    # TODO: Guard this with a lock?
     with _gui_lock:
-        if _gui_text:
+        if _gui_prompt:
             # TODO: Animate this?
             #
             # TODO: Make it red & bold?
-            gui.text(_gui_text)
+            gui.text(_gui_prompt)
+        if _silent_mics:
+            for mic in _silent_mics:
+                gui.text(f'No input from: "{mic}"')
+        if _clipping_mics:
+            for mic in _clipping_mics:
+                gui.text(f'"Mic is clipping: {mic}"')
+
+
+def _cache_durations():
+    # TODO: Cache this info in a file?
+    cache_durations_thread = threading.Thread(target=amounts_recorded_by_device)
+    cache_durations_thread.start()
+
+
+# Quietly populate the cache in the background, after Talon has booted.
+cron.after("10s", _cache_durations)
 
 
 #### Comment out this line to disable the script: ####
-cron.interval("100ms", _maybe_record)
+if not platform == "Linux":
+    # Crashes on i3 so just disable on Linux for now.
+    cron.interval("100ms", _maybe_record)
