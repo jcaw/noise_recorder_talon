@@ -59,6 +59,10 @@ last_recording_uuid = ""
 last_recording_noise_name = ""
 last_recording_lock = threading.Lock()
 
+# So disk doesn't need to be hammered on every recording
+_durations_cache = {}
+_durations_cache_lock = threading.Lock()
+
 
 def recordings_path(device_name, noise_name):
     """Get the folder a specific noise's recordings should be stored in."""
@@ -96,6 +100,10 @@ def get_flac_duration(filename: str) -> float:
     """Returns the duration of a FLAC file in seconds.
 
     From: https://gist.github.com/lukasklein/8c474782ed66c7115e10904fecbed86a
+    (Modified slightly e.g. to add a cache)
+
+    This method assumes the file currently exists (if it's been deleted, the
+    cached duration may still be returned).
 
     """
 
@@ -105,26 +113,31 @@ def get_flac_duration(filename: str) -> float:
             result = (result << 8) + byte
         return result
 
-    with open(filename, "rb") as f:
-        if f.read(4) != b"fLaC":
-            raise ValueError("File is not a flac file")
-        header = f.read(4)
-        while len(header):
-            meta = struct.unpack("4B", header)  # 4 unsigned chars
-            block_type = meta[0] & 0x7F  # 0111 1111
-            size = bytes_to_int(header[1:4])
+    with _durations_cache_lock:
+        if filename in _durations_cache:
+            return _durations_cache[filename]
 
-            if block_type == 0:  # Metadata Streaminfo
-                streaminfo_header = f.read(size)
-                unpacked = struct.unpack("2H3p3p8B16p", streaminfo_header)
-
-                samplerate = bytes_to_int(unpacked[4:7]) >> 4
-                sample_bytes = [(unpacked[7] & 0x0F)] + list(unpacked[8:12])
-                total_samples = bytes_to_int(sample_bytes)
-                duration = float(total_samples) / samplerate
-
-                return duration
+        with open(filename, "rb") as f:
+            if f.read(4) != b"fLaC":
+                raise ValueError("File is not a flac file")
             header = f.read(4)
+            while len(header):
+                meta = struct.unpack("4B", header)  # 4 unsigned chars
+                block_type = meta[0] & 0x7F  # 0111 1111
+                size = bytes_to_int(header[1:4])
+
+                if block_type == 0:  # Metadata Streaminfo
+                    streaminfo_header = f.read(size)
+                    unpacked = struct.unpack("2H3p3p8B16p", streaminfo_header)
+
+                    samplerate = bytes_to_int(unpacked[4:7]) >> 4
+                    sample_bytes = [(unpacked[7] & 0x0F)] + list(unpacked[8:12])
+                    total_samples = bytes_to_int(sample_bytes)
+                    duration = float(total_samples) / samplerate
+
+                    _durations_cache[filename] = duration
+                    return duration
+                header = f.read(4)
 
 
 def _duration_in_folder(folder):
